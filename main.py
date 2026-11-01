@@ -5,24 +5,18 @@ from datetime import datetime
 DATA_FILE = "salon_data.json"
 
 DEFAULT_DATA = {
-    "products": [
-        {"id": 1, "name": "Shampoo", "price": 12.00, "stock": 20},
-        {"id": 2, "name": "Conditioner", "price": 14.00, "stock": 15},
-        {"id": 3, "name": "Hair Oil", "price": 10.00, "stock": 12}
-    ],
-    "services": [
-        {"id": 1, "name": "Haircut", "price": 25.00},
-        {"id": 2, "name": "Hair Coloring", "price": 65.00},
-        {"id": 3, "name": "Manicure", "price": 30.00}
-    ],
+    "products": [],
+    "services": [],
     "sales": []
 }
+
+ADMIN_PIN = os.environ.get("SALON_ADMIN_PIN", "")
 
 
 def load_data():
     """Load salon data, creating a starter dataset on first launch."""
     if not os.path.exists(DATA_FILE):
-        return DEFAULT_DATA.copy()
+        return {"products": [], "services": [], "sales": []}
     try:
         with open(DATA_FILE, "r") as data_file:
             data = json.load(data_file)
@@ -31,8 +25,8 @@ def load_data():
         data.setdefault("sales", [])
         return data
     except (IOError, ValueError):
-        print("Could not read the saved data. Starting with the sample data.")
-        return DEFAULT_DATA.copy()
+        print("Could not read the saved data. Starting with an empty catalog.")
+        return {"products": [], "services": [], "sales": []}
 
 
 def save_data(data):
@@ -54,6 +48,48 @@ def read_number(message, minimum=0):
             return value
         except ValueError:
             print("Please enter a whole number.")
+
+
+def read_price(message):
+    while True:
+        try:
+            value = float(input(message))
+            if value < 0:
+                print("Please enter a price of at least 0.")
+                continue
+            return round(value, 2)
+        except ValueError:
+            print("Please enter a valid price.")
+
+
+def next_id(items):
+    return max([item.get("id", 0) for item in items] or [0]) + 1
+
+
+def add_product(data):
+    name = input("Product name: ").strip()
+    if not name:
+        print("Product name cannot be empty.")
+        return
+    price = read_price("Price: ₱")
+    stock = read_number("Starting stock: ")
+    product = {"id": next_id(data["products"]), "name": name,
+               "price": price, "stock": stock}
+    data["products"].append(product)
+    save_data(data)
+    print("Added product: {} (ID {}).".format(name, product["id"]))
+
+
+def add_service(data):
+    name = input("Service name: ").strip()
+    if not name:
+        print("Service name cannot be empty.")
+        return
+    price = read_price("Price: ₱")
+    service = {"id": next_id(data["services"]), "name": name, "price": price}
+    data["services"].append(service)
+    save_data(data)
+    print("Added service: {} (ID {}).".format(name, service["id"]))
 
 
 def list_products(data):
@@ -197,14 +233,21 @@ def sales_report(data):
 
 def main():
     data = load_data()
+    admin_logged_in = False
+
     while True:
         print("\n=== SALON POS & INVENTORY ===")
         print("1. New sale")
         print("2. View inventory")
-        print("3. Add stock")
+        print("3. Add stock (admin)")
         print("4. View services")
         print("5. Sales report")
+        print("6. Add product (admin)")
+        print("7. Add service (admin)")
+        print("8. Admin login")
+        print("9. Admin logout")
         print("0. Exit")
+
         choice = input("Choose an option: ").strip()
 
         if choice == "1":
@@ -212,11 +255,35 @@ def main():
         elif choice == "2":
             list_products(data)
         elif choice == "3":
-            add_stock(data)
+            if admin_logged_in:
+                add_stock(data)
+            else:
+                print("Admin access required. Please log in first.")
         elif choice == "4":
             list_services(data)
         elif choice == "5":
             sales_report(data)
+        elif choice == "6":
+            if admin_logged_in:
+                add_product(data)
+            else:
+                print("Admin access required. Please log in first.")
+        elif choice == "7":
+            if admin_logged_in:
+                add_service(data)
+            else:
+                print("Admin access required. Please log in first.")
+        elif choice == "8":
+            if not ADMIN_PIN:
+                print("Admin PIN is not configured. Set the SALON_ADMIN_PIN environment variable.")
+            elif input("Admin PIN: ") == ADMIN_PIN:
+                admin_logged_in = True
+                print("Admin access granted.")
+            else:
+                print("Incorrect PIN.")
+        elif choice == "9":
+            admin_logged_in = False
+            print("Admin logged out.")
         elif choice == "0":
             print("Goodbye.")
             break
