@@ -74,6 +74,17 @@
     .page { display: none; }
     .page.active { display: block; }
     .report-total { color: var(--success); }
+    .topbar-actions { align-items: center; display: flex; gap: 10px; }
+    .admin-only { display: none; }
+    .admin-only.visible { display: block; }
+    .login-backdrop { align-items: center; background: rgba(35, 28, 39, .58); display: none; inset: 0; justify-content: center; padding: 18px; position: fixed; z-index: 10; }
+    .login-backdrop.open { display: flex; }
+    .login-card { max-width: 410px; width: 100%; }
+    .login-card h2 { margin-bottom: 8px; }
+    .login-actions { display: flex; gap: 10px; }
+    .login-actions button { flex: 1; }
+    .login-error { color: var(--danger); min-height: 21px; }
+    @media (max-width: 680px) { .topbar-actions { align-items: flex-start; flex-direction: column; } }
 
     /* Extra visual polish for the salon dashboard. */
     aside { position: relative; overflow: hidden; }
@@ -144,8 +155,25 @@
           <h1 id="page-title">New sale</h1>
           <div class="muted">Salon point of sale and inventory</div>
         </div>
-        <div class="badge" id="today"></div>
+        <div class="topbar-actions">
+          <div class="badge" id="today"></div>
+          <button class="button secondary" id="admin-button" type="button">Admin login</button>
+        </div>
       </header>
+
+      <div class="login-backdrop" id="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-dialog-title">
+        <form class="panel login-card" id="admin-form">
+          <h2 id="admin-dialog-title">Admin login</h2>
+          <p class="muted" id="admin-description"></p>
+          <div class="field"><label for="admin-username">Username</label><input id="admin-username" type="text" placeholder="Enter admin username" autocomplete="username" required></div>
+          <div class="field"><label for="admin-password">Password</label><input id="admin-password" type="password" placeholder="Enter admin password" autocomplete="current-password" required></div>
+          <p class="login-error" id="admin-error" aria-live="polite"></p>
+          <div class="login-actions">
+            <button class="button primary" id="admin-submit" type="submit">Log in</button>
+            <button class="button secondary" id="admin-cancel" type="button">Cancel</button>
+          </div>
+        </form>
+      </div>
 
       <section class="page active" id="page-sales">
         <div class="stats">
@@ -182,21 +210,35 @@
             <h2>Product inventory</h2>
             <div class="table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>In stock</th><th>ID</th></tr></thead><tbody id="inventory-rows"></tbody></table></div>
           </section>
-          <section class="panel">
-            <h2>Add stock</h2>
+          <section class="panel admin-only" id="inventory-admin-tools">
+            <h2>Add product</h2>
+            <div class="field"><label for="new-product-name">Product name</label><input id="new-product-name" type="text" placeholder="Enter product name"></div>
+            <div class="form-row">
+              <div class="field"><label for="new-product-price">Price (₱)</label><input id="new-product-price" type="number" min="0" step="0.01" placeholder="0.00"></div>
+              <div class="field"><label for="new-product-stock">Starting stock</label><input id="new-product-stock" type="number" min="0" step="1" placeholder="0"></div>
+            </div>
+            <button class="button primary wide" id="add-product">Add product</button>
+            <h2 style="margin-top:24px">Add stock</h2>
             <div class="field"><label for="stock-product">Product</label><select id="stock-product"></select></div>
             <div class="field"><label for="stock-quantity">Quantity to add</label><input id="stock-quantity" type="number" min="1" value="1"></div>
-            <button class="button primary wide" id="add-stock">Update stock</button>
-            <p class="notice">To change the product catalog, edit the default products in the page's JavaScript.</p>
+            <button class="button secondary wide" id="add-stock">Update stock</button>
           </section>
         </div>
       </section>
 
       <section class="page" id="page-services">
-        <section class="panel">
-          <h2>Available services</h2>
-          <div class="table-wrap"><table><thead><tr><th>Service</th><th>Price</th><th>ID</th></tr></thead><tbody id="service-rows"></tbody></table></div>
-        </section>
+        <div class="content-grid">
+          <section class="panel">
+            <h2>Available services</h2>
+            <div class="table-wrap"><table><thead><tr><th>Service</th><th>Price</th><th>ID</th></tr></thead><tbody id="service-rows"></tbody></table></div>
+          </section>
+          <section class="panel admin-only" id="services-admin-tools">
+            <h2>Add service</h2>
+            <div class="field"><label for="new-service-name">Service name</label><input id="new-service-name" type="text" placeholder="Enter service name"></div>
+            <div class="field"><label for="new-service-price">Price (₱)</label><input id="new-service-price" type="number" min="0" step="0.01" placeholder="0.00"></div>
+            <button class="button primary wide" id="add-service">Add service</button>
+          </section>
+        </div>
       </section>
 
       <section class="page" id="page-reports">
@@ -215,21 +257,11 @@
   <script>
     (function () {
       var STORAGE_KEY = "salon-pos-system-v1";
-      var defaults = {
-        products: [
-          { id: 1, name: "Shampoo", price: 12, stock: 20 },
-          { id: 2, name: "Conditioner", price: 14, stock: 15 },
-          { id: 3, name: "Hair Oil", price: 10, stock: 12 }
-        ],
-        services: [
-          { id: 1, name: "Haircut", price: 25 },
-          { id: 2, name: "Hair Coloring", price: 65 },
-          { id: 3, name: "Manicure", price: 30 }
-        ],
-        sales: []
-      };
+      var ADMIN_KEY = "salon-pos-admin-v1";
+      var defaults = { products: [], services: [], sales: [] };
       var data;
       var cart = [];
+      var adminLoggedIn = false;
 
       function loadData() {
         try {
@@ -257,6 +289,37 @@
         });
       }
       function el(id) { return document.getElementById(id); }
+      function getAdminAccount() {
+        try { return JSON.parse(localStorage.getItem(ADMIN_KEY) || "null"); }
+        catch (error) { return null; }
+      }
+      function hashPassword(password) {
+        var bytes = new TextEncoder().encode(password);
+        return window.crypto.subtle.digest("SHA-256", bytes).then(function (buffer) {
+          return Array.prototype.map.call(new Uint8Array(buffer), function (byte) {
+            return ("0" + byte.toString(16)).slice(-2);
+          }).join("");
+        });
+      }
+      function updateAdminControls() {
+        document.querySelectorAll(".admin-only").forEach(function (panel) {
+          panel.classList.toggle("visible", adminLoggedIn);
+        });
+        el("admin-button").textContent = adminLoggedIn ? "Admin logout" : "Admin login";
+      }
+      function openAdminDialog() {
+        var hasAccount = !!getAdminAccount();
+        el("admin-dialog-title").textContent = hasAccount ? "Admin login" : "Create admin account";
+        el("admin-description").textContent = hasAccount
+          ? "Sign in to manage products, services, and stock."
+          : "Set up the admin username and password for this browser. Use at least 8 characters for the password.";
+        el("admin-submit").textContent = hasAccount ? "Log in" : "Create account";
+        el("admin-password").setAttribute("autocomplete", hasAccount ? "current-password" : "new-password");
+        el("admin-error").textContent = "";
+        el("admin-form").reset();
+        el("admin-dialog").classList.add("open");
+        el("admin-username").focus();
+      }
       function fillSelect(select, items, placeholder) {
         select.innerHTML = "";
         if (!items.length) {
@@ -317,6 +380,50 @@
           el("page-title").textContent = button.textContent;
         });
       });
+      el("admin-button").addEventListener("click", function () {
+        if (adminLoggedIn) {
+          adminLoggedIn = false;
+          updateAdminControls();
+          return;
+        }
+        openAdminDialog();
+      });
+      el("admin-cancel").addEventListener("click", function () {
+        el("admin-dialog").classList.remove("open");
+      });
+      el("admin-dialog").addEventListener("click", function (event) {
+        if (event.target === el("admin-dialog")) { el("admin-dialog").classList.remove("open"); }
+      });
+      el("admin-form").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var username = el("admin-username").value.trim();
+        var password = el("admin-password").value;
+        var account = getAdminAccount();
+        var error = el("admin-error");
+        if (!username || !password) { error.textContent = "Enter both username and password."; return; }
+        if (!account && password.length < 8) { error.textContent = "Use a password with at least 8 characters."; return; }
+        if (!window.crypto || !window.crypto.subtle || !window.TextEncoder) {
+          error.textContent = "Admin login requires a secure browser connection.";
+          return;
+        }
+        hashPassword(password).then(function (passwordHash) {
+          if (account) {
+            if (account.username !== username || account.passwordHash !== passwordHash) {
+              error.textContent = "Incorrect username or password.";
+              return;
+            }
+          } else {
+            account = { username: username, passwordHash: passwordHash };
+            localStorage.setItem(ADMIN_KEY, JSON.stringify(account));
+          }
+          adminLoggedIn = true;
+          updateAdminControls();
+          el("admin-dialog").classList.remove("open");
+          el("admin-form").reset();
+        }).catch(function () {
+          error.textContent = "Could not access browser storage. Check browser settings and try again.";
+        });
+      });
       el("item-type").addEventListener("change", render);
       el("add-to-cart").addEventListener("click", function () {
         var type = el("item-type").value;
@@ -365,7 +472,41 @@
         render();
         alert("Sale #" + sale.id + " completed — " + money(sale.total));
       });
+      el("add-product").addEventListener("click", function () {
+        if (!adminLoggedIn) { alert("Admin login required."); return; }
+        var name = el("new-product-name").value.trim();
+        var price = Number(el("new-product-price").value);
+        var stock = Number(el("new-product-stock").value);
+        if (!name || el("new-product-price").value === "" || !isFinite(price) || price < 0) {
+          alert("Enter a product name and a valid price."); return;
+        }
+        if (el("new-product-stock").value === "" || !isFinite(stock) || stock < 0 || Math.floor(stock) !== stock) {
+          alert("Enter a valid whole-number starting stock."); return;
+        }
+        var id = data.products.reduce(function (max, item) { return Math.max(max, Number(item.id) || 0); }, 0) + 1;
+        data.products.push({ id: id, name: name, price: Math.round(price * 100) / 100, stock: stock });
+        saveData();
+        el("new-product-name").value = "";
+        el("new-product-price").value = "";
+        el("new-product-stock").value = "";
+        render();
+      });
+      el("add-service").addEventListener("click", function () {
+        if (!adminLoggedIn) { alert("Admin login required."); return; }
+        var name = el("new-service-name").value.trim();
+        var price = Number(el("new-service-price").value);
+        if (!name || el("new-service-price").value === "" || !isFinite(price) || price < 0) {
+          alert("Enter a service name and a valid price."); return;
+        }
+        var id = data.services.reduce(function (max, item) { return Math.max(max, Number(item.id) || 0); }, 0) + 1;
+        data.services.push({ id: id, name: name, price: Math.round(price * 100) / 100 });
+        saveData();
+        el("new-service-name").value = "";
+        el("new-service-price").value = "";
+        render();
+      });
       el("add-stock").addEventListener("click", function () {
+        if (!adminLoggedIn) { alert("Admin login required."); return; }
         var item = data.products.filter(function (entry) { return String(entry.id) === el("stock-product").value; })[0];
         var quantity = parseInt(el("stock-quantity").value, 10);
         if (!item) { alert("Choose a product first."); return; }
@@ -377,6 +518,7 @@
       });
 
       data = loadData();
+      updateAdminControls();
       render();
     }());
 
