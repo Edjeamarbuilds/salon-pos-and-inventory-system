@@ -149,7 +149,7 @@
 
       <section class="page active" id="page-sales">
         <div class="stats">
-          <div class="panel"><div class="stat-label">Today's sales</div><div class="stat-value" id="today-sales">$0.00</div></div>
+          <div class="panel"><div class="stat-label">Today's sales</div><div class="stat-value" id="today-sales">₱0.00</div></div>
           <div class="panel"><div class="stat-label">Sales recorded</div><div class="stat-value" id="sales-count">0</div></div>
           <div class="panel"><div class="stat-label">Products in catalog</div><div class="stat-value" id="product-count">0</div></div>
         </div>
@@ -169,7 +169,7 @@
           <section class="panel">
             <h2>Current sale</h2>
             <div id="cart-items" class="cart-empty">No items added yet.</div>
-            <div class="total-row"><span>Total</span><span id="cart-total">$0.00</span></div>
+            <div class="total-row"><span>Total</span><span id="cart-total">₱0.00</span></div>
             <button class="button primary wide" id="complete-sale">Complete sale</button>
             <button class="button secondary wide" id="clear-cart" style="margin-top:8px">Clear sale</button>
           </section>
@@ -201,9 +201,9 @@
 
       <section class="page" id="page-reports">
         <div class="stats">
-          <div class="panel"><div class="stat-label">Total revenue</div><div class="stat-value report-total" id="total-revenue">$0.00</div></div>
+          <div class="panel"><div class="stat-label">Total revenue</div><div class="stat-value report-total" id="total-revenue">₱0.00</div></div>
           <div class="panel"><div class="stat-label">Completed sales</div><div class="stat-value" id="report-count">0</div></div>
-          <div class="panel"><div class="stat-label">Average sale</div><div class="stat-value" id="average-sale">$0.00</div></div>
+          <div class="panel"><div class="stat-label">Average sale</div><div class="stat-value" id="average-sale">₱0.00</div></div>
         </div>
         <section class="panel">
           <h2>Recent sales</h2>
@@ -250,7 +250,7 @@
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
         catch (error) { alert("Could not save data in this browser."); }
       }
-      function money(value) { return "$" + Number(value || 0).toFixed(2); }
+      function money(value) { return "₱" + Number(value || 0).toFixed(2); }
       function escapeHtml(value) {
         return String(value).replace(/[&<>"']/g, function (char) {
           return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char];
