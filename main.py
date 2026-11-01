@@ -41,7 +41,7 @@ def save_data(data):
 
 
 def money(amount):
-    return "${:.2f}".format(amount)
+    return "₱{:.2f}".format(amount)
 
 
 def read_number(message, minimum=0):
